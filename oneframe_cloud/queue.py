@@ -180,16 +180,25 @@ def account_posts(account: str, queues: list, receipts: list, local_posts: list)
     return sorted(out.values(), key=lambda x: x[0])
 
 
-def is_duplicate(item: dict, account: str, receipts: list, local_posts: list) -> str:
-    """Non-empty reason when this exact content was already posted to this account."""
+def find_duplicate(item: dict, account: str, receipts: list, local_posts: list):
+    """The earlier real post of this exact content to this account, or None.
+    -> {"source": "cloud"|"local", "media_id", "post_url", "published_at", "same_bytes"}"""
     for r in receipts:
         if r.get("account") == account and (r.get("item_ref") == item["item_ref"]
                                             or r.get("source_sha256") == item["source_sha256"]):
-            return f"cloud receipt {r.get('media_id')}"
+            return {"source": "cloud", "media_id": r.get("media_id"), "post_url": r.get("post_url"),
+                    "published_at": r.get("published_at"),
+                    "same_bytes": r.get("source_sha256") == item["source_sha256"]}
     for p in local_posts:
         if p.get("account") == account and p.get("source_sha256") == item["source_sha256"]:
-            return f"local Module 5 history {p.get('media_id')}"
-    return ""
+            return {"source": "local", "media_id": p.get("media_id"), "post_url": p.get("post_url"),
+                    "published_at": p.get("published_at"), "same_bytes": True}
+    return None
+
+
+def is_duplicate(item: dict, account: str, receipts: list, local_posts: list) -> str:
+    d = find_duplicate(item, account, receipts, local_posts)
+    return f"{d['source']} post {d['media_id']}" if d else ""
 
 
 def decide(queues: list, *, now: datetime, receipts: list, local_posts: list) -> dict:
@@ -247,10 +256,14 @@ def decide(queues: list, *, now: datetime, receipts: list, local_posts: list) ->
             notes.append({"action": "WAIT_SPACING", "where": ref,
                           "detail": f"last post {posts[-1][0].isoformat()}"})
             continue
-        dup = is_duplicate(h, q["account"], receipts, local_posts)
+        dup = find_duplicate(h, q["account"], receipts, local_posts)
         if dup:
-            return {"action": "BLOCK_DUPLICATE", "queue_ref": q["queue_ref"], "item": h,
-                    "detail": dup, "notes": notes}
+            # exact same bytes already live on this account (e.g. posted by the local
+            # scheduler before cutover): record it as POSTED with that proof, never re-post
+            proven = dup["same_bytes"] and dup.get("media_id") and dup.get("published_at")
+            return {"action": "ALREADY_POSTED" if proven else "BLOCK_DUPLICATE",
+                    "queue_ref": q["queue_ref"], "item": h, "duplicate": dup,
+                    "detail": f"{dup['source']} post {dup.get('media_id')}", "notes": notes}
         return {"action": "PUBLISH", "queue_ref": q["queue_ref"], "item": h, "notes": notes}
     # nothing publishable: report the earliest note
     return dict(notes[0], notes=notes) if notes else {"action": "NOOP"}

@@ -95,13 +95,22 @@ def tick(state_dir, *, now: datetime, env: dict, gh=None, meta_factory=None, com
         res.update(result="CUTOVER_DISABLED", action="NOOP", would_decide=summary)
         return res
     res["decision"] = summary
-    if decision["action"] == "BLOCK_DUPLICATE":
+    if decision["action"] in ("BLOCK_DUPLICATE", "ALREADY_POSTED"):
         q = next(x for x in queues if x["queue_ref"] == decision["queue_ref"])
         it = next(i for i in q["items"] if i["item_ref"] == decision["item"]["item_ref"])
-        it.update(status="BLOCKED", error=f"duplicate: {decision['detail']}")
+        dup = decision["duplicate"]
+        if decision["action"] == "ALREADY_POSTED":
+            it.update(status="POSTED", media_id=str(dup["media_id"]), post_url=dup.get("post_url"),
+                      published_at=dup["published_at"],
+                      error=f"already published ({dup['source']}); not re-posted")
+            res.update(result="ALREADY_POSTED", action="NOOP")
+        else:
+            it.update(status="BLOCKED", error=f"duplicate: {decision['detail']}")
+            res.update(result="BLOCKED_DUPLICATE", action="NOOP")
+        if all(i["status"] in Q.DONE_ITEM_STATES for i in q["items"]):
+            q["state"] = "COMPLETED"
         save_queue(q)
-        _commit(commit, f"oneframe: BLOCK duplicate {q['queue_ref']}#{it['position']}")
-        res.update(result="BLOCKED_DUPLICATE", action="NOOP")
+        res["persisted"] = _commit(commit, f"oneframe: {res['result']} {q['queue_ref']}#{it['position']}")
         return res
     if decision["action"] != "PUBLISH":
         res.update(result=decision["action"], action="NOOP")

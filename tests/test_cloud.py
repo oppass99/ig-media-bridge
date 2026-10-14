@@ -413,26 +413,43 @@ class Publish(Base):
         self.assertEqual(res["result"], "ABORTED_STATE_NOT_PERSISTED")
         self.assertEqual(self.meta.log, [])
 
-    def test_duplicate_receipt_blocks(self):
+    def test_duplicate_receipt_never_reposted(self):
         q = Q.load_queues(self.sd)[0]
         (self.sd / "receipts" / "x.json").write_text(json.dumps({
             "account": "IG_ONEFRAME_999", "item_ref": "other",
             "source_sha256": q["items"][0]["source_sha256"], "media_id": "M0",
             "published_at": kst(2026, 10, 14, 12).isoformat()}))
         res = self.run_tick(self.sd, kst(2026, 10, 15, 12, 10))
+        self.assertEqual(res["result"], "ALREADY_POSTED")
+        self.assertEqual(self.meta.log, [])
+        it = Q.load_queues(self.sd)[0]["items"][0]
+        self.assertEqual((it["status"], it["media_id"]), ("POSTED", "M0"))
+        # a receipt without proof (no media id) can only block, never count as posted
+        (self.sd / "receipts" / "y.json").write_text(json.dumps({
+            "account": "IG_ONEFRAME_999", "item_ref": q["items"][1]["item_ref"],
+            "source_sha256": q["items"][1]["source_sha256"], "media_id": None}))
+        res = self.run_tick(self.sd, kst(2026, 10, 15, 18, 10))
         self.assertEqual(res["result"], "BLOCKED_DUPLICATE")
         self.assertEqual(self.meta.log, [])
-        self.assertEqual(Q.load_queues(self.sd)[0]["items"][0]["status"], "BLOCKED")
 
-    def test_local_history_reconcile_blocks(self):
+    def test_local_history_reconcile_never_reposts(self):
+        """Items the local scheduler already posted before cutover: recorded with the
+        local proof, one per tick, the queue keeps its order, no Meta call."""
         q = Q.load_queues(self.sd)[0]
         rec = json.loads((self.sd / "local_reconcile.json").read_text())
-        rec["posts"] = [{"account": "IG_ONEFRAME_999", "source_sha256": q["items"][0]["source_sha256"],
-                         "media_id": "LOCAL1", "published_at": kst(2026, 10, 15, 1).isoformat()}]
+        rec["posts"] = [{"account": "IG_ONEFRAME_999", "source_sha256": q["items"][k]["source_sha256"],
+                         "media_id": f"LOCAL{k}", "published_at": q["items"][k]["target_at"]}
+                        for k in (0, 1)]
         (self.sd / "local_reconcile.json").write_text(json.dumps(rec))
-        res = self.run_tick(self.sd, kst(2026, 10, 15, 12, 10))
-        self.assertEqual(res["result"], "BLOCKED_DUPLICATE")
-        self.assertEqual(self.meta.log, [])
+        now = kst(2026, 10, 16, 12, 10)
+        self.assertEqual(self.run_tick(self.sd, now)["result"], "ALREADY_POSTED")
+        self.assertEqual(self.run_tick(self.sd, now)["result"], "ALREADY_POSTED")
+        res = self.run_tick(self.sd, now)
+        self.assertEqual(res["result"], "POSTED")
+        self.assertEqual(self.meta.log.count("media_publish"), 1)
+        st = [(i["status"], i["media_id"]) for i in Q.load_queues(self.sd)[0]["items"][:3]]
+        self.assertEqual(st[:2], [("POSTED", "LOCAL0"), ("POSTED", "LOCAL1")])
+        self.assertEqual(st[2][0], "POSTED")
 
     def test_wrong_key_blocks(self):
         env = dict(ENV_ON, ONEFRAME_MEDIA_KEY_B64=base64.b64encode(os.urandom(32)).decode())
