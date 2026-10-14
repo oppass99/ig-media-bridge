@@ -1,0 +1,5 @@
+{
+ "ONEFRAME_CLOUD_CUTOVER": "DISABLED",
+ "cutover_enabled_at": null,
+ "note": "Global ONEFRAME cloud publishing gate. Publishing also needs the repository variable ONEFRAME_CLOUD_CUTOVER=ENABLED and a local_reconcile.json generated after the local launchd scheduler was stopped. Default and current: DISABLED."
+}
