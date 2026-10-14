@@ -1,0 +1,64 @@
+# ONEFRAME cloud scheduler -- one tick per run, at most ONE Instagram publish per tick.
+#
+# $0: PUBLIC repository + standard GitHub-hosted runner (ubuntu-24.04) + GitHub
+# Releases + repository Secrets + the built-in GITHUB_TOKEN. No third-party
+# action, no larger runner, no artifacts, no LFS, no packages, no cache.
+#
+# Triggers: schedule + manual workflow_dispatch ONLY (never pull_request /
+# pull_request_target -- fork code can never see a secret).
+#
+# Kill switch: publishing needs ONEFRAME_CLOUD_CUTOVER=ENABLED in BOTH the
+# repository variable AND state/control.json (plus a fresh local-history
+# reconcile). While the variable is not ENABLED the Instagram token and the
+# media key are not even passed to the job.
+name: oneframe-scheduler
+
+on:
+  schedule:
+    # every 15 min, off the top of the hour (GitHub delays :00 the most); the
+    # due-time logic in Asia/Seoul is authoritative, not this cron
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: oneframe-publisher
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    if: github.repository == 'oppass99/ig-media-bridge'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write   # state commits + temporary release asset; nothing else
+    steps:
+      - name: Clone repository (plain git, no third-party action)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --no-tags --depth 20 "https://github.com/${GITHUB_REPOSITORY}.git" repo
+          auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::${auth}"
+          git -C repo config http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth}"
+
+      - name: Install hash-pinned dependencies
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --disable-pip-version-check --no-deps \
+            --only-binary=:all: --require-hashes -r repo/requirements-cloud.txt
+
+      - name: Tick
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ONEFRAME_CLOUD_CUTOVER: ${{ vars.ONEFRAME_CLOUD_CUTOVER }}
+          ONEFRAME_IG_ACCESS_TOKEN: ${{ vars.ONEFRAME_CLOUD_CUTOVER == 'ENABLED' && secrets.ONEFRAME_IG_ACCESS_TOKEN || '' }}
+          ONEFRAME_IG_USER_ID: ${{ vars.ONEFRAME_CLOUD_CUTOVER == 'ENABLED' && secrets.ONEFRAME_IG_USER_ID || '' }}
+          ONEFRAME_MEDIA_KEY_B64: ${{ vars.ONEFRAME_CLOUD_CUTOVER == 'ENABLED' && secrets.ONEFRAME_MEDIA_KEY_B64 || '' }}
+        run: |
+          set -euo pipefail
+          cd repo
+          ../.venv/bin/python -m oneframe_cloud tick --state state --persist git
