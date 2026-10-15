@@ -595,9 +595,16 @@ class ZeroCostGuard(unittest.TestCase):
         self.assertEqual({p for p, _ in pkgs}, {"cryptography", "cffi", "pycparser"})
         self.assertGreaterEqual(req.count("--hash=sha256:"), 3)
 
-    def test_control_default_disabled(self):
+    def test_control_disabled_or_proper_cutover(self):
+        # committed gate is DISABLED, or ENABLED only with a cutover time and a local
+        # reconcile exported after the local scheduler was confirmed stopped
         c = json.loads((ROOT / "state" / "control.json").read_text())
-        self.assertEqual(c["ONEFRAME_CLOUD_CUTOVER"], "DISABLED")
+        self.assertIn(c["ONEFRAME_CLOUD_CUTOVER"], ("DISABLED", "ENABLED"))
+        if c["ONEFRAME_CLOUD_CUTOVER"] == "ENABLED":
+            rec = json.loads((ROOT / "state" / "local_reconcile.json").read_text())
+            self.assertEqual(rec["local_scheduler"], "DISABLED_CONFIRMED")
+            self.assertGreaterEqual(datetime.fromisoformat(rec["generated_at"]),
+                                    datetime.fromisoformat(c["cutover_enabled_at"]))
 
 
 if __name__ == "__main__":
