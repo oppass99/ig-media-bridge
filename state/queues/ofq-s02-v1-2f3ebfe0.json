@@ -3,7 +3,7 @@
  "queue_ref": "ofq-s02-v1-2f3ebfe0",
  "queue_version": 1,
  "song_seq": 2,
- "state": "DRAFT",
+ "state": "APPROVED",
  "account": "IG_ONEFRAME_999",
  "timezone": "Asia/Seoul",
  "daily_limit": 2,
@@ -190,5 +190,7 @@
   }
  ],
  "schedule_revised_at": "2026-10-15T18:37:11+09:00",
- "schedule_revision": "missed-slot reschedule: no post made; order preserved; future fixed slots only"
+ "schedule_revision": "missed-slot reschedule: no post made; order preserved; future fixed slots only",
+ "approved_at": "2026-10-15T19:02:50+09:00",
+ "after_queue_ref": "ofq-s01-v2-41f44bcf"
 }

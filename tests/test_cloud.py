@@ -269,6 +269,25 @@ class QueueRules(Base):
         d = Q.decide(qs, now=kst(2026, 10, 20, 11, 50), receipts=[], local_posts=[])
         self.assertEqual(d["action"], "NOOP")
 
+    def test_after_queue_ref_waits_for_previous_song(self):
+        sd, _ = self.two_songs(s1="APPROVED", s2="APPROVED")
+        qs = Q.load_queues(sd)
+        qs[1]["after_queue_ref"] = qs[0]["queue_ref"]
+        now = kst(2026, 10, 20, 12, 5)
+        # song 1 stuck on its last item -> song 2 must not start even though it is due
+        for i in qs[0]["items"][:-1]:
+            i.update(status="POSTED", media_id="m" + i["item_ref"], published_at=i["target_at"])
+        qs[0]["items"][-1].update(status="BLOCKED", error="x")
+        d = Q.decide(qs, now=now, receipts=[], local_posts=[])
+        self.assertNotEqual(d["action"], "PUBLISH")
+        self.assertTrue(any(n["action"] == "WAIT_PREVIOUS_QUEUE" for n in d["notes"]))
+        qs[0]["items"][-1].update(status="POSTED", media_id="mx", published_at=kst(2026, 10, 19, 18).isoformat())
+        d = Q.decide(qs, now=now, receipts=[], local_posts=[])
+        self.assertEqual((d["action"], d["queue_ref"]), ("PUBLISH", qs[1]["queue_ref"]))
+        # a dangling dependency fails closed
+        qs[1]["after_queue_ref"] = "ofq-missing"
+        self.assertNotEqual(Q.decide(qs, now=now, receipts=[], local_posts=[])["action"], "PUBLISH")
+
     def test_non_approved_states_never_publish(self):
         sd, _ = self.two_songs(s1="MIGRATION_PENDING", s2="DRAFT")
         d = Q.decide(Q.load_queues(sd), now=kst(2026, 10, 25, 12), receipts=[], local_posts=[])

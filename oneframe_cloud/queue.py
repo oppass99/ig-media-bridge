@@ -220,9 +220,22 @@ def decide(queues: list, *, now: datetime, receipts: list, local_posts: list) ->
         return {"action": "NOOP", "detail": "no APPROVED queue with pending items"}
     # earliest scheduled head first; a halted head blocks only its own queue
     heads = sorted([x for x in heads if x[0] == "HEAD"], key=lambda x: _dt(x[2]["target_at"]))
+    by_ref = {q["queue_ref"]: q for q in queues}
     notes = []
     for _, q, h in heads:
         ref = f"{q['queue_ref']}#{h['position']}"
+        # optional song-to-song dependency: never start until the previous queue is fully done
+        after = q.get("after_queue_ref")
+        if after:
+            prev = by_ref.get(after)
+            if prev is None:
+                notes.append({"action": "HALTED", "where": ref,
+                              "detail": f"after_queue_ref {after} not found"})
+                continue
+            if prev["state"] != "COMPLETED" and head_item(prev) is not None:
+                notes.append({"action": "WAIT_PREVIOUS_QUEUE", "where": ref,
+                              "detail": f"{after} not complete"})
+                continue
         if h["status"] == "POSTING":
             notes.append({"action": "HALTED", "where": ref,
                           "detail": "left in POSTING by an interrupted run -- verify the account, "
