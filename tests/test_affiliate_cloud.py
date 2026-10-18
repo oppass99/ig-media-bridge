@@ -17,6 +17,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -154,7 +155,8 @@ class Base(unittest.TestCase):
 
     def run_tick(self, now, env, commit=None):
         return T.tick(self.sd, now=now.astimezone(timezone.utc), env=env, gh=self.gh,
-                      meta_factory=self.factory, commit=commit, workdir=str(self.tmp))
+                      meta_factory=self.factory, commit=commit, workdir=str(self.tmp),
+                      clock=lambda: now.astimezone(timezone.utc))
 
     def queue(self, account, tag="q1"):
         p = next((self.sd / "affiliate" / account / "queues").glob(f"*{tag}.json"))
@@ -622,6 +624,224 @@ class CopyLint(Base):
         self.assertTrue(rep["errors"])
         rep2 = AQ.lint_queue_copy([c, CAPTION["IG_ABLECREW"].format(n=1).replace("Closet", "Rack")])
         self.assertTrue(rep2["warnings"])  # same hashtag block
+
+
+def kst_days(start_day, n, hour=18):
+    return [kst(2026, 11, start_day + k, hour) for k in range(n)]
+
+
+NY = ZoneInfo("America/New_York")
+
+
+def ny(y, m, d, hh, mm=0):
+    return datetime(y, m, d, hh, mm, tzinfo=NY)
+
+
+COUPANG_CFG = dict(INSTAGRAM_DAILY_LIMIT=1, ALLOWED_POST_TIMES=["18:00"], TIMEZONE="Asia/Seoul",
+                   catchup_max_posts_24h=2)
+ALI_CFG = dict(INSTAGRAM_DAILY_LIMIT=1, ALLOWED_POST_TIMES=["16:00"], TIMEZONE="America/New_York",
+               catchup_max_posts_24h=2)
+
+
+class SlotDateAccounting(Base):
+    """COUPANG midnight drift: the daily limit is counted per INTENDED slot date."""
+
+    def side(self, n, start=2, **kw):
+        build_aff(self.sd, self.gh, {"IG_SIDE_B99": kst_days(start, n)},
+                  cfgs={"IG_SIDE_B99": cfg_for("IG_SIDE_B99", **dict(COUPANG_CFG, **kw))})
+        return env_for("IG_SIDE_B99")
+
+    def statuses(self):
+        return [i["status"] for i in self.queue("IG_SIDE_B99")["items"]]
+
+    def published(self):
+        return self.metas["IG_SIDE_B99"].log.count("media_publish")
+
+    def test_1_due_1800_run_before_midnight(self):
+        env = self.side(2)
+        r = self.run_tick(kst(2026, 11, 2, 23, 30), env)
+        self.assertEqual((r["result"], r["decision"]["item"]["position"]), ("POSTED", 1))
+
+    def test_2_due_1800_run_after_midnight_keeps_next_day_quota(self):
+        env = self.side(2)
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 1, 0), env)["result"], "POSTED")  # 11/2 item
+        r = self.run_tick(kst(2026, 11, 3, 18, 5), env)
+        self.assertEqual((r["result"], r["decision"]["item"]["position"]), ("POSTED", 2))
+        self.assertEqual(self.statuses(), ["POSTED", "POSTED"])
+
+    def test_3_significantly_late_next_day_catches_up_with_spacing(self):
+        env = self.side(2)
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 16, 0), env)["result"], "POSTED")
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 18, 5), env)["result"], "WAIT_SPACING")
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 20, 1), env)["result"], "POSTED")
+        self.assertEqual((self.statuses(), self.published()), (["POSTED", "POSTED"], 2))
+
+    def test_4_multi_day_outage_drains_in_order_without_burst_or_skip(self):
+        env = self.side(4)  # slots 11/2..11/5 18:00, runner down until 11/5 10:00
+        seq = []
+        t = kst(2026, 11, 5, 10, 0)
+        end = kst(2026, 11, 8, 0, 0)
+        while t < end:
+            r = self.run_tick(t, env)
+            if r["result"] == "POSTED":
+                seq.append((t, r["decision"]["item"]["position"]))
+            t += timedelta(minutes=15)
+        self.assertEqual([p for _, p in seq], [1, 2, 3, 4])  # strict order, nothing skipped
+        self.assertEqual(self.published(), 4)                # nothing posted twice
+        for k in range(len(seq) - 2):                       # never 3 real posts within 24 h
+            self.assertGreaterEqual(seq[k + 2][0] - seq[k][0], timedelta(hours=24))
+        for a, b in zip(seq, seq[1:]):
+            self.assertGreaterEqual(b[0] - a[0], timedelta(hours=4))
+
+    def test_5_next_days_legitimate_item_on_time(self):
+        env = self.side(2)
+        self.run_tick(kst(2026, 11, 2, 18, 5), env)
+        r = self.run_tick(kst(2026, 11, 3, 18, 5), env)
+        self.assertEqual((r["result"], r["decision"]["item"]["position"]), ("POSTED", 2))
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 23, 0), env)["result"], "NOOP")
+
+    def test_6_delayed_previous_day_plus_manual_post_on_next_day(self):
+        env = self.side(2)
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 0, 40), env)["result"], "POSTED")
+        rec = self.sd / "affiliate" / "IG_SIDE_B99" / "local_reconcile.json"
+        d = json.loads(rec.read_text())
+        d["posts"] = [{"account": "IG_SIDE_B99", "source_sha256": "e" * 64, "media_id": "777",
+                       "published_at": kst(2026, 11, 3, 9).isoformat()}]  # manual post 11/3
+        rec.write_text(json.dumps(d))
+        r = self.run_tick(kst(2026, 11, 3, 18, 5), env)
+        self.assertEqual(r["result"], "WAIT_DAILY_LIMIT")  # 11/3 used by the manual post, not by the late one
+        self.assertIn("next free slot 2026-11-04T18:00:00+09:00", r["decision"]["detail"])
+        self.assertEqual(self.statuses(), ["POSTED", "READY"])
+        r = self.run_tick(kst(2026, 11, 4, 18, 5), env)  # rolled one day, not skipped
+        self.assertEqual((r["result"], r["decision"]["item"]["position"]), ("POSTED", 2))
+        self.assertEqual(self.queue("IG_SIDE_B99")["items"][1]["slot_at"], kst(2026, 11, 4, 18).isoformat())
+
+    def test_7_retry_after_midnight_stays_on_its_slot_date(self):
+        env = self.side(2)
+        self.metas["IG_SIDE_B99"] = FakeMeta(uid=UID["IG_SIDE_B99"], username="side_b99",
+                                             fail_at="media")
+        self.assertEqual(self.run_tick(kst(2026, 11, 2, 23, 50), env)["result"], "FAILED")
+        self.metas["IG_SIDE_B99"].fail_at = None
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 0, 25), env)["result"], "POSTED")
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 18, 5), env)["result"], "POSTED")
+        self.assertEqual(self.run_tick(kst(2026, 11, 4, 18, 5), env)["result"], "NOOP")
+        self.assertEqual(self.published(), 2)
+        rec = sorted(json.loads(p.read_text())["target_at"] for p in
+                     (self.sd / "affiliate" / "IG_SIDE_B99" / "receipts").glob("*.json"))
+        self.assertEqual(rec, [kst(2026, 11, 2, 18).isoformat(), kst(2026, 11, 3, 18).isoformat()])
+
+    def test_8_limit_is_one_per_intended_date_both_directions(self):
+        env = self.side(1)
+        rec = self.sd / "affiliate" / "IG_SIDE_B99" / "local_reconcile.json"
+        d = json.loads(rec.read_text())
+        d["posts"] = [{"account": "IG_SIDE_B99", "source_sha256": "e" * 64, "media_id": "778",
+                       "published_at": kst(2026, 11, 2, 10).isoformat()}]
+        rec.write_text(json.dumps(d))
+        self.assertEqual(self.run_tick(kst(2026, 11, 2, 18, 5), env)["result"], "WAIT_DAILY_LIMIT")
+        # still the 11/2 slot after midnight: its quota is 11/2's, which is used
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 0, 30), env)["result"], "WAIT_DAILY_LIMIT")
+        self.assertEqual(self.built, [])
+        self.assertEqual(self.run_tick(kst(2026, 11, 3, 18, 5), env)["result"], "POSTED")
+        errs = AQ.validate_queue({**self.queue("IG_SIDE_B99"), "items": self.queue("IG_SIDE_B99")["items"] * 2},
+                                 "IG_SIDE_B99", cfg_for("IG_SIDE_B99", **COUPANG_CFG))
+        self.assertTrue(any("INSTAGRAM_DAILY_LIMIT 1" in e or "after previous" in e for e in errs))
+
+    def test_catchup_cap_validation(self):
+        reg = {"schema_version": SCHEMA_VERSION, "accounts": {
+            "IG_SIDE_B99": cfg_for("IG_SIDE_B99", **dict(COUPANG_CFG, catchup_max_posts_24h=5))}}
+        self.assertTrue(any("catchup" in e for e in A.validate_registry(reg)))
+
+
+class AliEasternTime(Base):
+    """ALI_EN: 16:00 America/New_York is authoritative; KST/UTC follow US DST."""
+
+    def ali(self, slots_, **kw):
+        build_aff(self.sd, self.gh, {"IG_ABLECREW": slots_},
+                  cfgs={"IG_ABLECREW": cfg_for("IG_ABLECREW", **dict(ALI_CFG, **kw))})
+        return env_for("IG_ABLECREW")
+
+    def test_dst_transition_slots_are_valid_local_1600(self):
+        sl = [ny(2026, 10, 31, 16), ny(2026, 11, 1, 16), ny(2026, 11, 2, 16)]
+        self.assertEqual([s.utcoffset() for s in sl],
+                         [timedelta(hours=-4), timedelta(hours=-5), timedelta(hours=-5)])
+        self.assertEqual([s.astimezone(timezone.utc).hour for s in sl], [20, 21, 21])
+        self.assertEqual([s.astimezone(kst(2026, 1, 1, 0).tzinfo).strftime("%m-%d %H:%M") for s in sl],
+                         ["11-01 05:00", "11-02 06:00", "11-03 06:00"])  # KST equivalent shifts by 1 h
+        env = self.ali(sl)
+        r = self.run_tick(sl[0] + timedelta(minutes=5), env)
+        self.assertNotIn("valid", r["accounts"]["IG_ABLECREW"])
+        self.assertEqual(r["result"], "POSTED")
+
+    def test_fixed_kst_conversion_is_rejected(self):
+        # 05:00 KST == 16:00 EDT before the change, but == 15:00 EST after it
+        bad = [datetime(2026, 11, 2, 5, tzinfo=kst(2026, 1, 1, 0).tzinfo)]
+        env = self.ali(bad)
+        r = self.run_tick(kst(2026, 11, 2, 6), env)
+        self.assertIn("15:00 not an allowed post time", " ".join(r["accounts"]["IG_ABLECREW"]["errors"]))
+
+    def test_spring_forward_too(self):
+        sl = [ny(2027, 3, 13, 16), ny(2027, 3, 14, 16)]
+        self.assertEqual([s.astimezone(timezone.utc).hour for s in sl], [21, 20])
+        env = self.ali(sl)
+        self.assertEqual(self.run_tick(sl[0] + timedelta(minutes=1), env)["result"], "POSTED")
+        self.assertEqual(self.run_tick(sl[1] + timedelta(minutes=1), env)["result"], "POSTED")
+
+    def test_delayed_past_eastern_midnight_keeps_next_day_quota(self):
+        sl = [ny(2026, 11, 2, 16), ny(2026, 11, 3, 16)]
+        env = self.ali(sl)
+        self.assertEqual(self.run_tick(ny(2026, 11, 3, 1, 0), env)["result"], "POSTED")
+        r = self.run_tick(ny(2026, 11, 3, 16, 5), env)
+        self.assertEqual((r["result"], r["decision"]["item"]["position"]), ("POSTED", 2))
+
+    def test_ali_limit_uses_eastern_date_not_korean_date(self):
+        # manual post at 11/3 09:00 KST == 11/2 19:00 EST -> uses ALI's 11/2 quota
+        env = self.ali([ny(2026, 11, 2, 16), ny(2026, 11, 3, 16)])
+        rec = self.sd / "affiliate" / "IG_ABLECREW" / "local_reconcile.json"
+        d = json.loads(rec.read_text())
+        d["posts"] = [{"account": "IG_ABLECREW", "source_sha256": "d" * 64, "media_id": "9",
+                       "published_at": kst(2026, 11, 3, 9).isoformat()}]
+        rec.write_text(json.dumps(d))
+        r = self.run_tick(ny(2026, 11, 2, 20), env)
+        self.assertEqual(r["result"], "WAIT_DAILY_LIMIT")
+        self.assertIn("2026-11-02 (America/New_York)", r["decision"]["detail"])
+        self.assertEqual(self.run_tick(ny(2026, 11, 3, 1), env)["result"], "WAIT_DAILY_LIMIT")
+        self.assertEqual(self.run_tick(ny(2026, 11, 3, 16, 5), env)["result"], "POSTED")  # #1 rolled to 11/3
+        q = self.queue("IG_ABLECREW")
+        self.assertEqual((q["items"][0]["status"], q["items"][0]["slot_at"]),
+                         ("POSTED", ny(2026, 11, 3, 16).isoformat()))
+        self.assertEqual(self.run_tick(ny(2026, 11, 3, 23), env)["result"], "WAIT_DAILY_LIMIT")
+        self.assertEqual(self.run_tick(ny(2026, 11, 4, 16, 5), env)["result"], "POSTED")  # #2 rolled to 11/4
+
+    def test_coupang_and_ali_isolated_in_their_own_zones(self):
+        build_aff(self.sd, self.gh, {"IG_SIDE_B99": [kst(2026, 11, 3, 18)],
+                                     "IG_ABLECREW": [ny(2026, 11, 2, 16)]},
+                  cfgs={"IG_SIDE_B99": cfg_for("IG_SIDE_B99", **COUPANG_CFG),
+                        "IG_ABLECREW": cfg_for("IG_ABLECREW", **ALI_CFG)})
+        env = env_for("IG_SIDE_B99", "IG_ABLECREW")
+        r1 = self.run_tick(kst(2026, 11, 3, 7), env)   # ALI 11/2 16:00 EST == 11/3 06:00 KST
+        self.assertEqual((r1["result"], r1["account"]), ("POSTED", "IG_ABLECREW"))
+        r2 = self.run_tick(kst(2026, 11, 3, 18, 5), env)
+        self.assertEqual((r2["result"], r2["account"]), ("POSTED", "IG_SIDE_B99"))
+
+
+class OneframeCodePinned(unittest.TestCase):
+    """oneframe_cloud/ is byte-identical to production (remote 1e82933 / 709a5e1)."""
+    PINNED = {
+        "__init__.py": "1d55ea6eb006514e43691068339365d0b39d60de2af956021d394d1df81dd6eb",
+        "__main__.py": "605dc48c57dd4e28bf074a8580115a025907d064875679904e7a98a4854941b6",
+        "bundle.py": "33ad3a02c3b41ef6f2bf6c67840fe429b675542f621de8ca697083af8194170b",
+        "gate.py": "4523ff04c80edde87ef95eb9c18a5375296676d70023ea5949990bbc0b7e9bd2",
+        "ghapi.py": "b36208b50bb7f754708d86c1c6011cf5183cab2164af82930eeafca4e9597b7e",
+        "meta.py": "e5b96ca2217d95f16f2212725dc036161b0cf2a7cb2c99d62b633aefc6a3c541",
+        "queue.py": "5d66d4f5aa0ae8623cd92480c2904f7551f1f984db8543b0450ac48454ab15bb",
+        "redact.py": "0f32c9000f90bb37eacbfda4c2c7b8d3f8023bd50af987bbac4686b7355863ec",
+        "tick.py": "7316e872a342899631a6ca47040fc9505d31f79a658f51c0d2dbad9a683bc847",
+    }
+
+    def test_oneframe_code_unchanged(self):
+        d = ROOT / "oneframe_cloud"
+        got = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(d.glob("*.py"))}
+        self.assertEqual(got, self.PINNED)
 
 
 class OneframeRegression(Base):

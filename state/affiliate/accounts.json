@@ -12,13 +12,14 @@
    "paused": false,
    "INSTAGRAM_DAILY_LIMIT": 1,
    "ALLOWED_POST_TIMES": [
-    "20:00"
+    "18:00"
    ],
    "TIMEZONE": "Asia/Seoul",
    "min_spacing_hours": 4,
    "max_attempts": 3,
    "retry_backoff_minutes": 30,
-   "retry_backoff_cap_minutes": 240
+   "retry_backoff_cap_minutes": 240,
+   "catchup_max_posts_24h": 2
   },
   "IG_ABLECREW": {
    "channel_profile": "ALI_EN",
@@ -30,13 +31,14 @@
    "paused": true,
    "INSTAGRAM_DAILY_LIMIT": 1,
    "ALLOWED_POST_TIMES": [
-    "08:00"
+    "16:00"
    ],
-   "TIMEZONE": "Asia/Seoul",
+   "TIMEZONE": "America/New_York",
    "min_spacing_hours": 4,
    "max_attempts": 3,
    "retry_backoff_minutes": 30,
-   "retry_backoff_cap_minutes": 240
+   "retry_backoff_cap_minutes": 240,
+   "catchup_max_posts_24h": 2
   }
  }
 }

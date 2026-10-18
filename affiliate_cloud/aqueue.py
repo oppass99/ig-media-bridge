@@ -179,15 +179,95 @@ def backoff_minutes(cfg: dict, attempt_count: int) -> int:
     return min(base * 2 ** max(int(attempt_count) - 1, 0), max(cap, base))
 
 
+# decide() counts its daily limit by the REAL publish date ("today" in the queue zone).
+# With a late runner that drifts: an 18:00 item processed at 01:00 would use the NEXT
+# day's quota. Affiliate views therefore switch that counter off and slot_quota()
+# counts by the item's INTENDED slot date instead (spacing, duplicates, retry cap,
+# POSTING halt and ordering are still decide()'s, unchanged).
+CALENDAR_LIMIT_OFF = 10 ** 6
+
+
+def slot_date(target_at, tz: str):
+    return _dt(target_at).astimezone(ZoneInfo(tz)).date()
+
+
+def catchup_cap(cfg: dict) -> int:
+    """Max REAL posts in any rolling 24 h: one slot's post + one late catch-up."""
+    return int(cfg.get("catchup_max_posts_24h") or int(cfg["INSTAGRAM_DAILY_LIMIT"]) + 1)
+
+
+def account_post_slots(account: str, queues: list, receipts: list, local_posts: list,
+                       tz: str) -> list:
+    """Every known real post -> (published_at, attributed slot date, media_id).
+    A cloud post is attributed to the slot it was published FOR (slot_at, else its
+    intended target_at). A local Module 5 post has no slot: its real publish date
+    in the account zone is used."""
+    out = {}
+    for q in queues:
+        for i in q["items"]:
+            if i["status"] == "POSTED" and i.get("media_id") and i.get("target_at"):
+                out[str(i["media_id"])] = (_dt(i["published_at"]),
+                                           slot_date(i.get("slot_at") or i["target_at"], tz),
+                                           str(i["media_id"]))
+    for r in receipts:
+        if r.get("account") == account and r.get("media_id") and r.get("published_at"):
+            slot = r.get("slot_at") or r.get("target_at") or r["published_at"]
+            out.setdefault(str(r["media_id"]), (_dt(r["published_at"]), slot_date(slot, tz),
+                                                str(r["media_id"])))
+    for p in local_posts:
+        if p.get("account") == account and p.get("published_at"):
+            mid = str(p.get("media_id") or f"local:{p.get('source_sha256')}")
+            out.setdefault(mid, (_dt(p["published_at"]), slot_date(p["published_at"], tz), mid))
+    return sorted(out.values(), key=lambda x: x[0])
+
+
+def effective_slot(head: dict, cfg: dict, posts: list) -> datetime:
+    """The slot this head publishes FOR: its intended target_at, unless that slot
+    date's quota is already used (e.g. by a manual post) -- then the next allowed
+    slot on the next date with free quota. Never earlier than intended; the queue
+    keeps its order and no item is skipped (later items shift by one)."""
+    zone = ZoneInfo(cfg["TIMEZONE"])
+    limit = int(cfg["INSTAGRAM_DAILY_LIMIT"])
+    used = {}
+    for p in posts:
+        used[p[1]] = used.get(p[1], 0) + 1
+    t = _dt(head["target_at"]).astimezone(zone)
+    if used.get(t.date(), 0) < limit:
+        return t
+    times = sorted(datetime.strptime(x, "%H:%M").time() for x in cfg["ALLOWED_POST_TIMES"])
+    d = t.date()
+    for _ in range(400):
+        d += timedelta(days=1)
+        if used.get(d, 0) < limit:
+            return datetime.combine(d, times[0], tzinfo=zone)
+    raise ValueError("no free slot date within 400 days")
+
+
+def slot_quota(head: dict, cfg: dict, posts: list, now: datetime):
+    """-> (effective slot, None) when the due head may publish now, else
+    (effective slot, WAIT note). Daily limit is per INTENDED/attributed slot date
+    in the account zone; real posts in any rolling 24 h are capped as well."""
+    slot = effective_slot(head, cfg, posts)
+    if slot > now:
+        return slot, {"action": "WAIT_DAILY_LIMIT",
+                      "detail": f"slot date {_dt(head['target_at']).astimezone(ZoneInfo(cfg['TIMEZONE'])).date()} "
+                                f"({cfg['TIMEZONE']}) quota used; next free slot {slot.isoformat()}"}
+    recent = sum(1 for p in posts if now - p[0] < timedelta(hours=24))
+    if recent >= catchup_cap(cfg):
+        return slot, {"action": "WAIT_CATCHUP_CAP", "detail": f"{recent} real posts in the last 24 h"}
+    return slot, None
+
+
 def decide_view(q: dict, cfg: dict) -> dict:
     """An APPROVED affiliate queue in the shape oneframe_cloud.queue.decide() reads.
-    READY -> QUEUED (decide's 'waiting for its slot'); every other status as-is."""
+    READY -> QUEUED (decide's 'waiting for its slot'); every other status as-is.
+    daily_limit is CALENDAR_LIMIT_OFF: the real limit is slot_quota()'s."""
     pending = [i for i in q["items"] if i["status"] not in DONE_ITEM_STATES]
     head_attempts = int(pending[0]["attempt_count"]) if pending else 0
     return {"schema_version": OF_SCHEMA, "queue_ref": q["queue_ref"],
             "queue_version": q["queue_version"], "song_seq": 0, "state": q["state"],
             "account": q["account"], "timezone": cfg["TIMEZONE"],
-            "daily_limit": int(cfg["INSTAGRAM_DAILY_LIMIT"]),
+            "daily_limit": CALENDAR_LIMIT_OFF,
             "times": list(cfg["ALLOWED_POST_TIMES"]),
             "min_spacing_hours": float(cfg["min_spacing_hours"]),
             "max_attempts": int(cfg["max_attempts"]),

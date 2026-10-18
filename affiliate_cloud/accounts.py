@@ -9,8 +9,12 @@ state/affiliate/accounts.json  (public; no secret in it)
        "account_fingerprint": "<16 hex>",       # sha256 of the real ig-user-id, salted
        "cloud_publish": "DISABLED", "enabled_at": null, "paused": false,
        "INSTAGRAM_DAILY_LIMIT": null, "ALLOWED_POST_TIMES": [], "TIMEZONE": "Asia/Seoul",
-       "min_spacing_hours": 4, "max_attempts": 3,
+       "min_spacing_hours": 4, "max_attempts": 3, "catchup_max_posts_24h": 2,
        "retry_backoff_minutes": 30, "retry_backoff_cap_minutes": 240}}}
+
+INSTAGRAM_DAILY_LIMIT is counted per INTENDED slot date in TIMEZONE (aqueue.slot_quota),
+so a late run never uses the next day's quota; catchup_max_posts_24h (default limit+1)
+caps REAL posts in any rolling 24 h so a long outage drains slowly instead of bursting.
 
 An account can publish ONLY when ALL of these hold (anything else -> closed):
 
@@ -125,6 +129,9 @@ def validate_registry(reg: dict) -> list:
         lim = c.get("INSTAGRAM_DAILY_LIMIT")
         if lim is not None and (not isinstance(lim, int) or lim < 1):
             errs.append(f"{a}: INSTAGRAM_DAILY_LIMIT must be null or an int >= 1")
+        cap = c.get("catchup_max_posts_24h")
+        if cap is not None and isinstance(lim, int) and not lim <= int(cap) <= lim + 1:
+            errs.append(f"{a}: catchup_max_posts_24h must be INSTAGRAM_DAILY_LIMIT or +1")
         if float(c.get("min_spacing_hours") or 0) < 4:
             errs.append(f"{a}: min_spacing_hours >= 4 required")
         if not 1 <= int(c.get("max_attempts") or 0) <= 3:

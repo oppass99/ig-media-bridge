@@ -4,12 +4,31 @@ Extends the ONEFRAME cloud scheduler (`ONEFRAME_CLOUD.md`) to the affiliate Inst
 accounts. It uses the same workflow job, runner, Releases bridge, crypto, Meta client
 and `decide()` logic. `oneframe_cloud/` is not modified.
 
-**Current state: every account DISABLED, no queues, nothing publishes.**
+**Current state: every account DISABLED (ALI also PAUSED); one ALI queue in DRAFT (unscheduled, encrypted bundle staged); nothing publishes.**
 
 | Content profile | Account | Username | Default |
 |---|---|---|---|
-| `COUPANG_KR` | `IG_SIDE_B99` | @side_b99 | DISABLED |
-| `ALI_EN` | `IG_ABLECREW` | @ablecrew | DISABLED + PAUSED |
+| `COUPANG_KR` | `IG_SIDE_B99` | @side_b99 | DISABLED · 1/day · 18:00 `Asia/Seoul` |
+| `ALI_EN` | `IG_ABLECREW` | @ablecrew | DISABLED + PAUSED · 1/day · 16:00 `America/New_York` |
+
+Slot times are stored in each account's own timezone. ALI follows US daylight saving
+automatically, so its Korea-time equivalent moves by one hour (for example, 05:00 KST
+in summer and 06:00 KST in winter). No fixed KST conversion is stored anywhere.
+
+## Daily limit by intended slot date
+
+GitHub cron runs late, often by hours. The daily limit is therefore counted per
+**intended slot date** in the account's timezone, not by the date the post happened to
+go out:
+
+- A late post keeps its own slot date. An 18:00 item that posts at 01:00 does not use
+  the next day's quota.
+- If a slot date's quota is already used, for example by a manual post, the head
+  moves to the next free slot. It is recorded as `slot_at`, nothing is skipped, and
+  later items shift by one.
+- `catchup_max_posts_24h` (2) caps real posts in any rolling 24 h. After a long
+  outage, the backlog drains at most 2 per day instead of bursting.
+- Catch-up works and no item is skipped, but exact-time posting is not guaranteed.
 
 ## How a run works
 

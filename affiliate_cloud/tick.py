@@ -138,7 +138,7 @@ def tick(state_dir, *, now: datetime, env: dict, gh=None, meta_factory=None, com
             except ghapi.GitHubError as e:
                 res["orphans_deleted"] = {"error": scrub(e)}
 
-    views, gates = [], {}
+    views, gates, quota_notes, slots_for = [], {}, [], {}
     for account, cfg in reg["accounts"].items():
         gate = A.account_gate(sd, account, env, reg)
         gates[account] = gate
@@ -155,16 +155,31 @@ def tick(state_dir, *, now: datetime, env: dict, gh=None, meta_factory=None, com
         if verrs:
             row.update(valid=False, errors=verrs[:10])
             continue
-        views += mine
+        # daily limit by INTENDED slot date (+ rolling-24h catch-up cap), per account
+        posts = AQ.account_post_slots(account, qs, receipts, local_posts, cfg["TIMEZONE"])
+        for v in mine:
+            h = Q.head_item(v)
+            if h and h["status"] in ("QUEUED", "FAILED") and Q._dt(h["target_at"]) <= now:
+                slot, wait = AQ.slot_quota(h, cfg, posts, now)
+                if wait:
+                    quota_notes.append(dict(wait, where=f"{v['queue_ref']}#{h['position']}"))
+                    continue
+                slots_for[h["item_ref"]] = slot.isoformat()
+            views.append(v)
     if not views:
-        res.update(result="NO_OPEN_ACCOUNT" if not any(g.enabled for g in gates.values())
-                   else "NOOP", action="NOOP")
+        if quota_notes:
+            res.update(result=quota_notes[0]["action"], action="NOOP", decision=quota_notes[0])
+        else:
+            res.update(result="NO_OPEN_ACCOUNT" if not any(g.enabled for g in gates.values())
+                       else "NOOP", action="NOOP")
         return res
 
     decision = Q.decide(views, now=now, receipts=receipts, local_posts=local_posts)
     summary = {k: v for k, v in decision.items() if k not in ("item", "notes")}
     if decision.get("item"):
         summary["item"] = {k: decision["item"][k] for k in ("position", "item_ref", "target_at")}
+    if quota_notes:
+        summary["quota_notes"] = quota_notes
     res["decision"] = summary
     if decision["action"] not in ("PUBLISH", "BLOCK_DUPLICATE", "ALREADY_POSTED"):
         res.update(result=decision["action"], action="NOOP")
@@ -191,7 +206,8 @@ def tick(state_dir, *, now: datetime, env: dict, gh=None, meta_factory=None, com
         return res
 
     it.update(status="POSTING", attempt_count=int(it["attempt_count"]) + 1,
-              last_attempt_at=now.isoformat(), error=None)
+              last_attempt_at=now.isoformat(), error=None,
+              slot_at=slots_for.get(it["item_ref"], it["target_at"]))
     save_queue(q)
     if not _commit(commit, f"affiliate: POSTING {q['queue_ref']}#{it['position']}"):
         res.update(result="ABORTED_STATE_NOT_PERSISTED", action="NOOP")
@@ -355,6 +371,7 @@ def _publish_one(q, it, sd, *, account, cfg, key_b64, gh, meta, workdir, clock):
 def _receipt(q, it, out, env) -> dict:
     return {"schema_version": SCHEMA_VERSION, "status": "POSTED", "item_ref": it["item_ref"],
             "queue_ref": q["queue_ref"], "position": it["position"], "account": q["account"],
+            "target_at": it["target_at"], "slot_at": it.get("slot_at"),
             "channel_profile": q["channel_profile"], "source_sha256": it["source_sha256"],
             "media_id": out["media_id"], "post_url": out["post_url"],
             "published_at": out["published_at"], "creation_id": out["creation_id"],
