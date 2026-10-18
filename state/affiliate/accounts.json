@@ -1,0 +1,42 @@
+{
+ "schema_version": "affiliate-cloud-1.0",
+ "note": "Affiliate Instagram cloud accounts. Publishing per account needs cloud_publish=ENABLED + enabled_at, repository variable AFFILIATE_CLOUD_<ACCOUNT>=ENABLED, paused=false, no halt.json, a fresh local_reconcile (CLOUD_ONLY_CONFIRMED), INSTAGRAM_DAILY_LIMIT and ALLOWED_POST_TIMES set by the operator, and an APPROVED queue. Default: everything DISABLED.",
+ "accounts": {
+  "IG_SIDE_B99": {
+   "channel_profile": "COUPANG_KR",
+   "username": "side_b99",
+   "language": "KO",
+   "account_fingerprint": "303962c39ffd19f5",
+   "cloud_publish": "DISABLED",
+   "enabled_at": null,
+   "paused": false,
+   "INSTAGRAM_DAILY_LIMIT": 1,
+   "ALLOWED_POST_TIMES": [
+    "20:00"
+   ],
+   "TIMEZONE": "Asia/Seoul",
+   "min_spacing_hours": 4,
+   "max_attempts": 3,
+   "retry_backoff_minutes": 30,
+   "retry_backoff_cap_minutes": 240
+  },
+  "IG_ABLECREW": {
+   "channel_profile": "ALI_EN",
+   "username": "ablecrew",
+   "language": "EN",
+   "account_fingerprint": "5ca060662ffe70a5",
+   "cloud_publish": "DISABLED",
+   "enabled_at": null,
+   "paused": true,
+   "INSTAGRAM_DAILY_LIMIT": 1,
+   "ALLOWED_POST_TIMES": [
+    "08:00"
+   ],
+   "TIMEZONE": "Asia/Seoul",
+   "min_spacing_hours": 4,
+   "max_attempts": 3,
+   "retry_backoff_minutes": 30,
+   "retry_backoff_cap_minutes": 240
+  }
+ }
+}

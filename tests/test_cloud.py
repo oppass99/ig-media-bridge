@@ -582,7 +582,9 @@ class ZeroCostGuard(unittest.TestCase):
         self.assertEqual(perms, [("contents", "write")])
         self.assertIn("concurrency:", self.body)
         self.assertIn("cancel-in-progress: false", self.body)
-        self.assertEqual(self.body.count("set -euo pipefail"), 3)
+        # every run step is strict (3 ONEFRAME steps + the affiliate step)
+        self.assertEqual(self.body.count("set -euo pipefail"), self.body.count("run: |"))
+        self.assertEqual(self.body.count("run: |"), 4)
 
     def test_secrets_only_when_enabled(self):
         for name in ("ONEFRAME_IG_ACCESS_TOKEN", "ONEFRAME_IG_USER_ID", "ONEFRAME_MEDIA_KEY_B64"):

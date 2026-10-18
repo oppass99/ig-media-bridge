@@ -62,3 +62,25 @@ jobs:
           set -euo pipefail
           cd repo
           ../.venv/bin/python -m oneframe_cloud tick --state state --persist git
+
+      # Affiliate Instagram accounts (affiliate_cloud). Runs AFTER the ONEFRAME
+      # step above, which is unchanged. Each account has its own repository
+      # variable AFFILIATE_CLOUD_<ACCOUNT>; while it is not ENABLED that account's
+      # token, user id and media key are not passed to the job at all.
+      - name: Affiliate tick
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AFFILIATE_CLOUD_IG_SIDE_B99: ${{ vars.AFFILIATE_CLOUD_IG_SIDE_B99 }}
+          AFFILIATE_IG_SIDE_B99_ACCESS_TOKEN: ${{ vars.AFFILIATE_CLOUD_IG_SIDE_B99 == 'ENABLED' && secrets.AFFILIATE_IG_SIDE_B99_ACCESS_TOKEN || '' }}
+          AFFILIATE_IG_SIDE_B99_USER_ID: ${{ vars.AFFILIATE_CLOUD_IG_SIDE_B99 == 'ENABLED' && secrets.AFFILIATE_IG_SIDE_B99_USER_ID || '' }}
+          AFFILIATE_IG_SIDE_B99_MEDIA_KEY_B64: ${{ vars.AFFILIATE_CLOUD_IG_SIDE_B99 == 'ENABLED' && secrets.AFFILIATE_IG_SIDE_B99_MEDIA_KEY_B64 || '' }}
+          AFFILIATE_CLOUD_IG_ABLECREW: ${{ vars.AFFILIATE_CLOUD_IG_ABLECREW }}
+          AFFILIATE_IG_ABLECREW_ACCESS_TOKEN: ${{ vars.AFFILIATE_CLOUD_IG_ABLECREW == 'ENABLED' && secrets.AFFILIATE_IG_ABLECREW_ACCESS_TOKEN || '' }}
+          AFFILIATE_IG_ABLECREW_USER_ID: ${{ vars.AFFILIATE_CLOUD_IG_ABLECREW == 'ENABLED' && secrets.AFFILIATE_IG_ABLECREW_USER_ID || '' }}
+          AFFILIATE_IG_ABLECREW_MEDIA_KEY_B64: ${{ vars.AFFILIATE_CLOUD_IG_ABLECREW == 'ENABLED' && secrets.AFFILIATE_IG_ABLECREW_MEDIA_KEY_B64 || '' }}
+        run: |
+          set -euo pipefail
+          cd repo
+          git pull --quiet --ff-only origin main || true
+          ../.venv/bin/python -m affiliate_cloud tick --state state --persist git
