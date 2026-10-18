@@ -112,12 +112,12 @@
    "bundle_sha256": "ca2c436aa9903c75a06208a21a5698091046e0cbfe00b19bec9a62281365cb2e",
    "bundle_bytes": 41103536,
    "target_at": "2026-10-18T18:00:00+09:00",
-   "status": "POSTING",
+   "status": "POSTED",
    "attempt_count": 1,
    "last_attempt_at": "2026-10-18T11:39:00.429366+00:00",
-   "media_id": null,
-   "post_url": null,
-   "published_at": null,
+   "media_id": "18099573575531902",
+   "post_url": "https://www.instagram.com/reel/DeomIk0FDTr/",
+   "published_at": "2026-10-18T11:39:55.710397+00:00",
    "error": null
   },
   {
