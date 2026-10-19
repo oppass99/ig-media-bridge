@@ -146,12 +146,12 @@
    "bundle_sha256": "76bf6a2c4b18d726284ce9299db039b377fb91317a577551da3cd01c30ef51be",
    "bundle_bytes": 33109830,
    "target_at": "2026-10-19T18:00:00+09:00",
-   "status": "POSTING",
+   "status": "POSTED",
    "attempt_count": 1,
    "last_attempt_at": "2026-10-19T10:55:15.191500+00:00",
-   "media_id": null,
-   "post_url": null,
-   "published_at": null,
+   "media_id": "17952147402341238",
+   "post_url": "https://www.instagram.com/reel/DerGAJICDli/",
+   "published_at": "2026-10-19T10:56:50.084243+00:00",
    "error": null
   },
   {
