@@ -7,8 +7,8 @@
    "username": "side_b99",
    "language": "KO",
    "account_fingerprint": "303962c39ffd19f5",
-   "cloud_publish": "DISABLED",
-   "enabled_at": null,
+   "cloud_publish": "ENABLED",
+   "enabled_at": "2026-10-20T00:59:16.034179+00:00",
    "paused": false,
    "INSTAGRAM_DAILY_LIMIT": 1,
    "ALLOWED_POST_TIMES": [
