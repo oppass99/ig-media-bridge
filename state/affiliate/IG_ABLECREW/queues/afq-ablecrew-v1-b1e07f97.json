@@ -1,0 +1,32 @@
+{
+ "schema_version": "affiliate-cloud-1.0",
+ "queue_ref": "afq-ablecrew-v1-b1e07f97",
+ "queue_version": 1,
+ "state": "APPROVED",
+ "account": "IG_ABLECREW",
+ "channel_profile": "ALI_EN",
+ "created_at": "2026-10-20T01:35:22.744476+00:00",
+ "key_id": "10dd36764d71e919",
+ "items": [
+  {
+   "position": 1,
+   "item_ref": "afi-84ffb242b93eb0855139",
+   "item_seq": 1,
+   "source_sha256": "854358a3cf0e028a111ad02e2c8d6ff9a813596340c5fa57af4cf048e5964442",
+   "bundle_asset": "afb-84ffb242b93eb0855139-d0a31599da11.bin",
+   "bundle_sha256": "d0a31599da1167ca784c10b2762675caaaa97d70a50954fc4446a372f9534d31",
+   "bundle_bytes": 43250514,
+   "target_at": "2026-10-20T16:00:00-04:00",
+   "status": "READY",
+   "attempt_count": 0,
+   "last_attempt_at": null,
+   "media_id": null,
+   "post_url": null,
+   "published_at": null,
+   "error": null
+  }
+ ],
+ "manifest_file": "afq-ablecrew-v1-b1e07f97.manifest.enc",
+ "manifest_sha256": "9efc1f8bd5b24e865868b6867bcd2ef32fad014b45f9371fc329ef77b0cda0b2",
+ "approved_at": "2026-10-20T01:36:24.450686+00:00"
+}
