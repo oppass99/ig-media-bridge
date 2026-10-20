@@ -163,12 +163,12 @@
    "bundle_sha256": "c850912675ddf0840ea075f84dd551794c6dac3da78382ee2281c7e450299709",
    "bundle_bytes": 57974354,
    "target_at": "2026-10-20T12:00:00+09:00",
-   "status": "POSTING",
+   "status": "POSTED",
    "attempt_count": 1,
    "last_attempt_at": "2026-10-20T05:25:21.523968+00:00",
-   "media_id": null,
-   "post_url": null,
-   "published_at": null,
+   "media_id": "18355389178170767",
+   "post_url": "https://www.instagram.com/reel/DetE9HqACWM/",
+   "published_at": "2026-10-20T05:26:10.578710+00:00",
    "error": null
   },
   {
