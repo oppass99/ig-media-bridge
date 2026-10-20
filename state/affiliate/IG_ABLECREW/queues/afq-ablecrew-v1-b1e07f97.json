@@ -17,13 +17,13 @@
    "bundle_sha256": "d0a31599da1167ca784c10b2762675caaaa97d70a50954fc4446a372f9534d31",
    "bundle_bytes": 43250514,
    "target_at": "2026-10-20T16:00:00-04:00",
-   "status": "POSTING",
+   "status": "BLOCKED",
    "attempt_count": 1,
    "last_attempt_at": "2026-10-20T22:36:09.775754+00:00",
    "media_id": null,
    "post_url": null,
    "published_at": null,
-   "error": null,
+   "error": "identity: me HTTP 400: {\"error\": {\"message\": \"Error validating access token: The session has been invalidated because the user changed their password or Facebook has changed the session for security reasons.\", \"type\": \"OAuthException\", \"code\": 190, \"error_subcode\": 0, \"fbtrace_id\": \"AwHxS8A8xwo8hCgKe41vpP-\"}}",
    "slot_at": "2026-10-20T16:00:00-04:00"
   }
  ],

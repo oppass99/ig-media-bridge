@@ -1,0 +1,8 @@
+{
+ "account": "IG_ABLECREW",
+ "halted_at": "2026-10-20T22:36:09.775754+00:00",
+ "reason": "IDENTITY: identity: me HTTP 400: {\"error\": {\"message\": \"Error validating access token: The session has been invalidated because the user changed their password or Facebook has changed the session for security r",
+ "item_ref": "afi-84ffb242b93eb0855139",
+ "meta_error_code": 190,
+ "resume": "verify the account in the Instagram app, then delete this file in a reviewed commit"
+}
