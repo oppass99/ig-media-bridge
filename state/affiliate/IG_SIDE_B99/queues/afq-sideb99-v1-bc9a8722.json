@@ -1,0 +1,32 @@
+{
+ "schema_version": "affiliate-cloud-1.0",
+ "queue_ref": "afq-sideb99-v1-bc9a8722",
+ "queue_version": 1,
+ "state": "APPROVED",
+ "account": "IG_SIDE_B99",
+ "channel_profile": "COUPANG_KR",
+ "created_at": "2026-10-21T12:21:29.017857+00:00",
+ "key_id": "04cdbb7a3b23ce54",
+ "items": [
+  {
+   "position": 1,
+   "item_ref": "afi-0d4b21265879e70ebd1e",
+   "item_seq": 1,
+   "source_sha256": "a3bbd1e035b941c00a8a8fa804bd82612f10989b3a45799ff8c70f78e589b2a0",
+   "bundle_asset": "afb-0d4b21265879e70ebd1e-111b666b2766.bin",
+   "bundle_sha256": "111b666b2766b91fa93149495afd0efa3fea832fed21d335a63a1fb910d6508d",
+   "bundle_bytes": 69471182,
+   "target_at": "2026-10-22T18:00:00+09:00",
+   "status": "READY",
+   "attempt_count": 0,
+   "last_attempt_at": null,
+   "media_id": null,
+   "post_url": null,
+   "published_at": null,
+   "error": null
+  }
+ ],
+ "manifest_file": "afq-sideb99-v1-bc9a8722.manifest.enc",
+ "manifest_sha256": "9d861aa601ce0e2ab581b0ec58bcdf40bc0a65362485134046e5222af73e5981",
+ "approved_at": "2026-10-21T12:21:45.419254+00:00"
+}
