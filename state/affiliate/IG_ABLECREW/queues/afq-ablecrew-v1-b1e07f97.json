@@ -16,7 +16,7 @@
    "bundle_asset": "afb-84ffb242b93eb0855139-d0a31599da11.bin",
    "bundle_sha256": "d0a31599da1167ca784c10b2762675caaaa97d70a50954fc4446a372f9534d31",
    "bundle_bytes": 43250514,
-   "target_at": "2026-10-20T16:00:00-04:00",
+   "target_at": "2026-11-01T16:00:00-05:00",
    "status": "BLOCKED",
    "attempt_count": 1,
    "last_attempt_at": "2026-10-20T22:36:09.775754+00:00",
@@ -24,10 +24,18 @@
    "post_url": null,
    "published_at": null,
    "error": "identity: me HTTP 400: {\"error\": {\"message\": \"Error validating access token: The session has been invalidated because the user changed their password or Facebook has changed the session for security reasons.\", \"type\": \"OAuthException\", \"code\": 190, \"error_subcode\": 0, \"fbtrace_id\": \"AwHxS8A8xwo8hCgKe41vpP-\"}}",
-   "slot_at": "2026-10-20T16:00:00-04:00"
+   "slot_at": "2026-10-20T16:00:00-04:00",
+   "reschedule_history": [
+    {
+     "from": "2026-10-20T16:00:00-04:00",
+     "to": "2026-11-01T16:00:00-05:00",
+     "at": "2026-10-21T14:44:12.873286+00:00",
+     "reason": "operator: no ALI Instagram publish in October 2026; resume from November slot; auth (190) halt unchanged"
+    }
+   ]
   }
  ],
  "manifest_file": "afq-ablecrew-v1-b1e07f97.manifest.enc",
- "manifest_sha256": "9efc1f8bd5b24e865868b6867bcd2ef32fad014b45f9371fc329ef77b0cda0b2",
+ "manifest_sha256": "d4bc78ed3fba163a48d4ad7480bbe7739ca2b629f95a59ca04be660f2052c670",
  "approved_at": "2026-10-20T01:36:24.450686+00:00"
 }

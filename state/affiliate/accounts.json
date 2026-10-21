@@ -28,7 +28,7 @@
    "account_fingerprint": "5ca060662ffe70a5",
    "cloud_publish": "ENABLED",
    "enabled_at": "2026-10-20T01:36:34.857460+00:00",
-   "paused": false,
+   "paused": true,
    "INSTAGRAM_DAILY_LIMIT": 1,
    "ALLOWED_POST_TIMES": [
     "16:00"
