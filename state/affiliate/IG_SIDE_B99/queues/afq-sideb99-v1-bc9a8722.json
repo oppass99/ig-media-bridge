@@ -17,13 +17,14 @@
    "bundle_sha256": "111b666b2766b91fa93149495afd0efa3fea832fed21d335a63a1fb910d6508d",
    "bundle_bytes": 69471182,
    "target_at": "2026-10-22T18:00:00+09:00",
-   "status": "READY",
-   "attempt_count": 0,
-   "last_attempt_at": null,
+   "status": "POSTING",
+   "attempt_count": 1,
+   "last_attempt_at": "2026-10-22T12:32:37.992057+00:00",
    "media_id": null,
    "post_url": null,
    "published_at": null,
-   "error": null
+   "error": null,
+   "slot_at": "2026-10-22T18:00:00+09:00"
   }
  ],
  "manifest_file": "afq-sideb99-v1-bc9a8722.manifest.enc",
