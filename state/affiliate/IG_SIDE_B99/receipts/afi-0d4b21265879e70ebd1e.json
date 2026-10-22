@@ -1,0 +1,18 @@
+{
+ "schema_version": "affiliate-cloud-1.0",
+ "status": "POSTED",
+ "item_ref": "afi-0d4b21265879e70ebd1e",
+ "queue_ref": "afq-sideb99-v1-bc9a8722",
+ "position": 1,
+ "account": "IG_SIDE_B99",
+ "target_at": "2026-10-22T18:00:00+09:00",
+ "slot_at": "2026-10-22T18:00:00+09:00",
+ "channel_profile": "COUPANG_KR",
+ "source_sha256": "a3bbd1e035b941c00a8a8fa804bd82612f10989b3a45799ff8c70f78e589b2a0",
+ "media_id": "18032302784681995",
+ "post_url": "https://www.instagram.com/reel/Dey_cbtFKnF/",
+ "published_at": "2026-10-22T12:33:27.397944+00:00",
+ "creation_id": "18094967699675580",
+ "run_id": "39779066846",
+ "identity_enc": "T0ZDTTEVabW9GqTIS/FP5qMF6o4BMvaN+6IQrn1r8fz8TaeldDQPSmviURQdYuCsDQ98lfwjw3kKlok7WfD73Ykw5zcq2IruLrnvjoKQqC5s5SiwuDUyHM/weOCY7SkPDd6pZ25sq/Gw4lpWtDbXINoYzGitz9dIgRfSjWT8WEWvpLzxNJhRIJMs0v8zZ1c54lvwRyBr394aJqwu8+xtyEvQT0MVc1kXFQlCq62HANL2ObseMbovEBqlC7mzOpVGAhXekd9e/ML6wV9CaqrSR8dQ9hMRbQYKQQv8cSqltdZ26t+hl4RCmwTWUsCvczdhBG2jzqAchmMHKUb0duc3OAaqizoNr7rDwWszvIIAXpjK/pQHKz7wv+OXpWUVkpudS78TqE6aChkyaK3IuQtOFdkq8DvDijh39TXIixjhbwrgIpmLsMn7ffd8w7euSHhrgsrKvAPweZVwePad7/cVp3O3+aPc0NDeAoB6g0vZMAayJh26+D6yZbfk8dljCp0UrgyMdvOpK7pSW4nBY0Q0yEFIIKLwIA1Eax0xLT6OGiq8aff4aTqirawuPyVVQ87Sb4PqylJMARxwLa3LmkWN17CzOz8QIaVRC3Q7VL4n76BCihYepUUPKPueKp9g0uQBhJVF+nodXxQ8/H4vW7CbiEcICS0jkyrJnGb2m4ybzAdErt5iEXn0Xa7npKOiy20dvr6VgamBKiB1hEglpMFrZdioymUwUK9JZijOSHunzye7Amq6Uui2jMaCTqNIVohRrTmW4bGdjwGM"
+}
